@@ -30,6 +30,7 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.thrift.ThriftMetaData;
 import org.apache.parquet.thrift.ThriftRecordConverter;
 import org.apache.parquet.thrift.ThriftSchemaConverter;
@@ -37,6 +38,7 @@ import org.apache.parquet.thrift.projection.FieldProjectionFilter;
 import org.apache.parquet.thrift.projection.ThriftProjectionException;
 import org.apache.parquet.thrift.struct.ThriftType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -237,4 +239,50 @@ public class ScroogeReadSupport<T extends ThriftStruct> extends ThriftReadSuppor
     }
   }
 
+  public static Type resolveListFormat(Type fileType, Type projection) {
+    // Base case when we either one of schema hits
+    if (fileType.isPrimitive() || projection.isPrimitive()) {
+      return projection;
+    }
+
+    GroupType groupFileType = fileType.asGroupType();
+    GroupType groupProjectionType = projection.asGroupType();
+
+    if (isGroupList(groupFileType) && isGroupList(groupProjectionType)) {
+      // Recurse on the repeated type first
+      Type repeatedFileType = groupFileType.getFields().get(0);
+      Type repeatedProjectedType = groupProjectionType.getFields().get(0);
+      repeatedProjectedType = resolveListFormat(repeatedFileType, repeatedProjectedType);
+
+      Type resolvedRepeatedType = new ParquetListFormatCompatibility()
+          .resolveFormat(
+              repeatedFileType,
+              repeatedProjectedType);
+      // Wrap back with resolved repeated type with `group`
+      return groupProjectionType.withNewFields(resolvedRepeatedType);
+    }
+
+    List<Type> fields = new ArrayList<Type>();
+    for (Type projected : groupProjectionType.getFields()) {
+      if (!projected.isPrimitive()) {
+        // The file type field must be a group type too
+        int fieldIndex = groupFileType.getFieldIndex(projected.getName());
+        Type fileField = groupFileType.getFields().get(fieldIndex);
+        fields.add(resolveListFormat(fileField.asGroupType(), projected.asGroupType()));
+      } else {
+        fields.add(projected);
+      }
+    }
+    return groupProjectionType.withNewFields(fields);
+  }
+
+  private static boolean isGroupList(Type projection) {
+    if (projection.isPrimitive()) {
+        return false;
+    }
+    GroupType groupProjection = projection.asGroupType();
+    return groupProjection.getOriginalType() == OriginalType.LIST &&
+            groupProjection.getFieldCount() == 1 &&
+            groupProjection.getFields().get(0).isRepetition(Type.Repetition.REPEATED);
+  }
 }
