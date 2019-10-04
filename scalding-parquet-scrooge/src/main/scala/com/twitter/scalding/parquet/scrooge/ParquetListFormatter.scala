@@ -19,19 +19,20 @@ private[scrooge] object ParquetListFormatter extends ParquetCollectionFormatter 
   private val logger = LoggerFactory.getLogger(getClass)
 
   private val rules: Seq[ParquetListFormatRule] = Seq(
-    PrimitiveElementRule, PrimitiveArrayRule,
-    GroupElementRule, GroupArrayRule,
-    TupleRule, StandardRule, SparkLegacyNullableElementRule
+    PrimitiveElementRule,
+    PrimitiveArrayRule,
+    GroupElementRule,
+    GroupArrayRule,
+    TupleRule,
+    StandardRule,
+    SparkLegacyNullableElementRule
   )
 
   def formatCompatibleRepeatedType(fileRepeatedType: Type,
                                    readRepeatedType: Type,
                                    fieldContext: FieldContext,
                                    recursiveSolver: (Type, Type, FieldContext) => Type): Type = {
-    (
-      findRule(fileRepeatedType),
-      findRule(readRepeatedType)
-    ) match {
+    (findRule(fileRepeatedType), findRule(readRepeatedType)) match {
       case (Some(fileRule), Some(readRule)) => {
         val readElementType = readRule.elementType(readRepeatedType)
         val fileElementType = fileRule.elementType(fileRepeatedType)
@@ -165,8 +166,9 @@ private[scrooge] sealed trait GroupListRule extends ParquetListFormatRule {
   override def elementName(repeatedType: Type): String = this.constantElementName
 
   override def appliesToType(repeatedType: Type): Boolean = {
-    if (repeatedType.isPrimitive) false
-    else {
+    if (repeatedType.isPrimitive) {
+      false
+    } else {
       val groupType = repeatedType.asGroupType
       groupType.getFields.size > 0 && groupType.getName == this.constantElementName
     }
