@@ -43,7 +43,7 @@ private[scrooge] object ParquetListFormatter extends ParquetCollectionFormatter 
           elementName = readRule.elementName(readRepeatedType),
           isElementRequired = readRule.isElementRequired(readRepeatedType),
           elementOriginalType = readRule.elementOriginalType(readRepeatedType),
-          fieldContext=fieldContext
+          fieldContext = fieldContext
         )
       }
 
@@ -218,8 +218,11 @@ private[scrooge] object TupleRule extends ParquetListFormatRule {
   override def createCompliantRepeatedType(typ: Type, name: String, isElementRequired: Boolean, originalType: OriginalType, fieldContext: FieldContext): Type = {
     // nested list has type name of the form: `field_original_name_tuple_tuple..._tuple` for the depth of list
     val suffixed_name = (List(fieldContext.name) ++ (1 to fieldContext.nestedListLevel).toList.map(_ => "tuple")).mkString("_")
-    if (typ.isPrimitive) new PrimitiveType(Type.Repetition.REPEATED, typ.asPrimitiveType.getPrimitiveTypeName, suffixed_name, originalType)
-    else new GroupType(Type.Repetition.REPEATED, suffixed_name, originalType, typ.asGroupType.getFields)
+    if (typ.isPrimitive) {
+      new PrimitiveType(Type.Repetition.REPEATED, typ.asPrimitiveType.getPrimitiveTypeName, suffixed_name, originalType)
+    } else {
+      new GroupType(Type.Repetition.REPEATED, suffixed_name, originalType, typ.asGroupType.getFields)
+    }
   }
 }
 
@@ -306,7 +309,8 @@ private[scrooge] object SparkLegacyNullableElementRule extends ThreeLevelRule {
   override def createCompliantRepeatedType(originalElementType: Type, name: String, isElementRequired: Boolean, originalType: OriginalType, fieldContext: FieldContext): Type = {
     if (isElementRequired) {
       throw new IllegalArgumentException(s"Spark legacy mode for nullable element cannot take required element. Found: ${originalElementType}")
+    } else {
+      super.createCompliantRepeatedType(originalElementType, name, isElementRequired, originalType, fieldContext)
     }
-    super.createCompliantRepeatedType(originalElementType, name, isElementRequired, originalType, fieldContext)
   }
 }
